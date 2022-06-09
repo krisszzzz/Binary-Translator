@@ -7,7 +7,7 @@
 * [Testing](#testing)
 
 
-## Introduction <a name="intro"></a>
+## Introduction {#intro}
 This project is the final project in the 1st year of my university. I tried to collect everything I knew in this project. 
 ## About <a name="about"></a>
 This program is a binary translator that translates

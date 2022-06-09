@@ -1,3 +1,8 @@
+/**
+ *  @file translator.h
+ *  @brief The header of translator, containing all used functions in JIT
+*/
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -6,20 +11,24 @@
 #include <sys/mman.h>
 #include <label_table.h>
 
+#define PAGESIZE 4096              /**< Default linux page size. Needed to mprotect correct work */
+#define HOST_MEMORY_COUNT 993      /**< All memory indexes that used in host assembler */
+#define TRANSLATE_PUSH_SIZE 23     /**< Size of opcode of one push register, needed to correct call */
+#define UNKNOWN 0                  /**< Define to mark unknown yet label */
+#define MIN_DST_CODE_SIZE 2 << 14  /**< Size of execution buffer (currently this is fixed value) */
 
-#define PAGESIZE 4096          // linux pagesize
-#define HOST_MEMORY_COUNT 993  // Used memory in host assembler
-#define TRANSLATE_PUSH_SIZE 23 // Size of opcode of one push register,
-                               // Need to correct call
-#define UNKNOWN 0              // Define to mark unknown yet label
+/** @def BYTE(val)
+ *  @def OPSIZE(op_code_name)
+ *  @brief Some usefull defines to decrease amount of code */
 
-#define MIN_DST_CODE_SIZE 2 << 14 // Size of execution buffer (Yea in this version it is fixed)
-
-#define BYTE(val) val * 8         // Some usefull defines to decrease amount of code
+#define BYTE(val) val * 8
 #define OPSIZE(op_code_name) SIZEOF_##op_code_name
 
 
 //+================| WORD SIZES |==================+
+
+/** Enum containing word sizes */
+
 enum WORD_SIZE : u_int64_t {
         DWORD   = 4,
         QWORD   = 8,
@@ -29,7 +38,10 @@ enum WORD_SIZE : u_int64_t {
 //-================================================-
 
 //+===============| COMPARISONS |==================+
-enum VCMMPD_COMPARISONS_CODE : u_int64_t {
+
+/** Enum containing comparison "code" for VCMPPD instruction */
+
+enum VCMPPD_COMPARISONS_CODE : u_int64_t {
         EQUAL = 0,
         LESS = 17,
         GREATER = 30
@@ -39,6 +51,9 @@ enum VCMMPD_COMPARISONS_CODE : u_int64_t {
 
 
 //+===========| MASK FOR XMM REGISTER |============+
+
+/** Enum containing register code in x86 Assembler */
+
 enum REG_MASK : u_int64_t {
         XMM0_EXTEND = 0x44,
         XMM5_BASE   = 0x2C,
@@ -50,6 +65,8 @@ enum REG_MASK : u_int64_t {
 
 //+============| TRANSLATION ERRORS |==============+
 
+/** Enum for error handling */
+
 enum TRANSLATION_ERROR {
   CVT_ERROR = -0xDED,
   MALLOC_ERROR,
@@ -59,6 +76,8 @@ enum TRANSLATION_ERROR {
 
 
 //+===========| HOST ASSEMBLER OPCODES |============+
+
+/** Opcodes for my CPU emulator (soft-CPU) */
 
 enum HOST_STACK_OP_CODES { // C++11
   PUSH  = 1,
@@ -86,6 +105,8 @@ enum HOST_STACK_OP_CODES { // C++11
 
 };
 
+/** My own register "opcodes" (masks to be exact) */
+
 enum HOST_ASSEMBLY_REG_ID : u_int64_t {
   AX = 1,
   BX,
@@ -97,6 +118,8 @@ enum HOST_ASSEMBLY_REG_ID : u_int64_t {
 //-===============================================-
 
 //+=============| NATIVE ASSEMBLER |==============+
+
+/** Enum containing all x86 opcodes               */
 
 enum X86_ASSEMBLY_OPCODES : u_int64_t {
 
@@ -266,8 +289,7 @@ enum X86_ASSEMBLY_OPCODES : u_int64_t {
 };
 
 
-
-
+/** Enum contating the size (in bytes) of each x86 opcodes, used by program  */
 
 enum X86_ASSEMBLY_OPCODES_SIZE {
   SIZEOF_VMOVQ_RSP_XMM         = 5,
@@ -302,29 +324,42 @@ enum X86_ASSEMBLY_OPCODES_SIZE {
 
 //-===============================================-
 
+/** Structure used to simplify writing opcodes  */
 struct opcode
 {
-        u_int64_t code;
-        int       size;
-};
- 
-union cvt_u_int64_t_int {
-                int       rel_addr;
-                u_int64_t extended_address;                 // Zero extended 
+        u_int64_t code; /**< Opcode, that should be written in the buffer */
+        int       size; /**< Size of this opcode */
 };
 
+/** Union to zero-extended conversation from int to u_int64_t */
+union cvt_u_int64_t_int {
+        int       rel_addr;                      /**< Value to convert. The name of the variable is because it is used primarily for address translation. */
+        u_int64_t extended_address;              /**< Zero extended value. */
+};
+
+
+/** Structure containing the assembled code and host (source) assembler code  */
 struct assembly_code
 {
-        char*  code;
-        int    position;
-        size_t size;
+        char*  code;     /**< Buffer to contation code */
+        int    position; /**< position of current opcode in buffer */
+        size_t size;     /**< size of buffer */
 };
 
-
+/** @brief function to initialize assembly_code structure
+ *  @param self object to initialize
+ *  @param size size of alocated memory for structure field self->buffer 
+ *  @return return MALLOC_ERROR (see TRANSLATION_ERROR) if allocation is failed. Return 0 if succeed.
+ *  @see TRANSLATION_ERROR
+ */
 int assembly_code_init(assembly_code* const __restrict self,
                        const size_t                    size)
         __attribute__((nonnull(1)));
 
+/** @brief function to read code from file and load it to struct field of assembly_code
+ *  @param src_file_name name of source file to read
+ *  @param src_code_save object of structure assembly_code to save source code
+ */
 int load_code(const char*    const __restrict src_file_name,
               assembly_code* const __restrict src_code_save)
         __attribute__((nonnull(1,2)));
@@ -332,9 +367,20 @@ int load_code(const char*    const __restrict src_file_name,
 
 //+=========================| FUNCTIONS DECLARATIONS |===============================+
 
+/** @brief function for making so-called label_table - structure contating all info about labels (such as position in source code)
+ *  @param src_code source code where labels will be looked up
+ *  @param table object of label_table to save info about labels
+ */
+
 void make_label_table(assembly_code* const __restrict src_code,
                       label_table*   const __restrict table)
         __attribute__((nonnull(1,2)));
+
+/** @brief same as assembly_code_init(), but the memory allocated using aligned_alloc() function
+ *  @param self object to initialize
+ *  @param alignment alignment of allocated memory
+ *  @param size size of alocated memory for structure field self->buffer 
+ */
 
 int assembly_code_aligned_init(assembly_code* const __restrict self,
                                const size_t                    alignment,
