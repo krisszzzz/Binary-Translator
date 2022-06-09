@@ -1,3 +1,4 @@
 .cache
+doc
 build
 compile_commands.json
