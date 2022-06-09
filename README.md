@@ -68,7 +68,7 @@ Write the execution and (in native mode) translation time:
 ~~~
 
 <h2 id="document">Documentation</h2>
-You can find doxygen-generated documentation <a href="https://github.com/krisszzzz/proccessor">here.</a>  
+You can find doxygen-generated documentation <a href="https://github.com/krisszzzz/Binary-Translator/blob/master/html/index.html">here.</a>  
 
 <h2 id="testing">Testing</h2>
 I wrote I simple program in my assembler that count the factorial of number 50 10000 times and compare native and non-native execution.  
