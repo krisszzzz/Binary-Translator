@@ -17,7 +17,7 @@
 
 #define ERROR(condition, ret_val,...)                       \
     if(condition) {                                         \
-        ErrorPrint(__VA_ARGS__);                             \
+        ErrorPrint(__VA_ARGS__);                            \
         return ret_val;                                     \
     }
 

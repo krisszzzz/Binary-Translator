@@ -114,7 +114,4 @@ inline int label_table_search_by_label(label_table* const __restrict self,
         
 };
 
-
-
-
 #endif

@@ -333,8 +333,9 @@ struct opcode
 
 /** Union to zero-extended conversation from int to u_int64_t */
 union cvt_u_int64_t_int {
-        int       rel_addr;                      /**< Value to convert. The name of the variable is because it is used primarily for address translation. */
-        u_int64_t extended_address;              /**< Zero extended value. */
+        int       rel_addr;         /**< Value to convert. The name of the variable is because it
+                                     * is used primarily for address translation. */
+        u_int64_t extended_address; /**< Zero extended value. */
 };
 
 
@@ -359,6 +360,8 @@ int assembly_code_init(assembly_code* const __restrict self,
 /** @brief function to read code from file and load it to struct field of assembly_code
  *  @param src_file_name name of source file to read
  *  @param src_code_save object of structure assembly_code to save source code
+ *  @return FILE_OPENING_ERROR - if cannot open the file. MALLOC_ERROR - if memory allocation error
+ *  detected, else return 0.
  */
 int load_code(const char*    const __restrict src_file_name,
               assembly_code* const __restrict src_code_save)
@@ -367,7 +370,7 @@ int load_code(const char*    const __restrict src_file_name,
 
 //+=========================| FUNCTIONS DECLARATIONS |===============================+
 
-/** @brief function for making so-called label_table - structure contating all info about labels (such as position in source code)
+/** @brief function for making so-called label_table - structure (hash table) contating all info about labels (such as position in source code)
  *  @param src_code source code where labels will be looked up
  *  @param table object of label_table to save info about labels
  */
@@ -380,6 +383,8 @@ void make_label_table(assembly_code* const __restrict src_code,
  *  @param self object to initialize
  *  @param alignment alignment of allocated memory
  *  @param size size of alocated memory for structure field self->buffer 
+ *  @return return MALLOC_ERROR (see TRANSLATION_ERROR) if allocation is failed. Return 0 if succeed.
+ *  @see TRANSLATION_ERROR
  */
 
 int assembly_code_aligned_init(assembly_code* const __restrict self,
@@ -388,82 +393,177 @@ int assembly_code_aligned_init(assembly_code* const __restrict self,
         __attribute__((nonnull(1)));
 
 
-void label_setting(assembly_code* const __restrict dst_code,
-                   label_table* const   __restrict table,
-                   const int                       indx,
-                   const size_t                    code_pos,
-                   const int                       label_pos)
+/** @brief link label with appropriate jmp or call
+ *  @param dst_code buffer, where translated code will be injected
+ *  @param table label_table structure, and for table the make_label_table() function must be called
+ *  @param search_indx index in table->elem array. When the make_label_table() function was called,
+ *  labels were added to the label_table structure. In the future, when translating the code, the
+ *  hash table is searched using the label_table_search_by_label() function, that is, in fact, we
+ *  check whether the position of the code that we are translating is a label or not. This index
+ *  is responsible for the position of the label in the label_table structure.
+ *  @param label_pos label position (offset in source buffer) in source buffer
+ */
+
+void link_label(assembly_code* const __restrict dst_code,
+                label_table* const   __restrict table,
+                const int                       search_indx,
+                const int                       label_pos)
         __attribute__((nonnull(1,2)));
 
-int save_jmp_n_call_rel32(assembly_code* const __restrict dst_code,
-                          const size_t                    code_pos)
+/** @brief translate relative/non-relative jump and call instruction
+ *  @param dst_code buffer, where translated code will be injected
+ *  @param jmp_pos jmp or call position in destination buffer.  When processing labels, it may be
+ *  that jmp (call, conditional jmp) comes first and then the label. In this case, jmp (call) is translated
+ *  in advance, and when the label is reached, this function is called, and the already
+ *  translated jmp (call) receives the address of this label.
+ */
+
+void traslate_rel32_label(assembly_code* const __restrict dst_code,
+                          const size_t                    jmp_pos)
         __attribute__((nonnull(1)));
 
 
+/** @brief translate conditional and non-conditional jump and call.
+ *  @param dst_code buffer, where translated code will be injected
+ *  @param jmp_n_call_code a number indicating whether the instruction is conditional or non-conditional jump
+ *  or call
+ *  @return opcode structure, that contain translated code and size of this chunk of code
+ */
 opcode translate_jmp_n_call(assembly_code* const __restrict dst_code,
-                            const int                       jmp_code)
+                            const int                       jmp_n_call_code)
        __attribute__((nonnull(1), always_inline));
 
 
+/** @brief start execution of translated code
+ *  @param execution_buffer buffer, whre translated code is stored
+ *  @param time_flag flag that flag indicating whether to measure the execution time
+ */
 void execute_start(char* const __restrict execution_buffer,
                    const int              time_flag)
        __attribute__((nonnull(1)));
 
-int translation_start(const char *const __restrict    src_file_name,
-                      assembly_code *const __restrict dst_buffer,
-                      const int                       time_flag)
+/** @brief main function that start translation
+ *  @param src_file_name name of source file to translate
+ *  @param dst_code buffer, where translated code will be injected
+ *  @param time_flag flag that flag indicating whether to measure the translation time
+ */
+
+void translation_start(const char *const __restrict    src_file_name,
+                       assembly_code *const __restrict dst_buffer,
+                       const int                       time_flag)
        __attribute__((nonnull(1,2)));
 
-int load_src_assembly_code(const char *const __restrict    src_file_name,
-                           assembly_code *const __restrict src_code_save)
+/** @brief load source code to buffer
+ *  @param src_file_name name of source file to translate
+ *  @param src_code_save object of assembly_code structure, where the source code will be saved
+ *  @return FILE_OPENING_ERROR - if file opening error happened. MALLOC_ERROR - if memory allocation
+ *  error happened, else return 0. For more info see TRANSLATION_ERROR.
+ *  @see TRANSLATION_ERROR
+ */
+
+int load_code(const char    *const __restrict    src_file_name,
+              assembly_code *const __restrict src_code_save)
         __attribute__((nonnull(1,2)));
+
+/** @brief handle command line parameters
+ *  @param argc command line argument count
+ *  @param argv array of strings with this arguments
+ */
 
 void command_line_handler(int argc, char* argv[])
         __attribute__((nonnull(2)));
 
+/** @brief simple function, that I declared to simplify translating stdout function in my assembler
+ *  language
+ *  @param pointer to value, that will be printed
+ *  @return as a standart printf
+ */
 extern "C" int double_printf(double* value);
+
+/** @brief simple function, same as double_printf, but for stdin
+ *  @param pointer to value, where the inputted value will be stored
+ *  @return as a standart scanf
+ */
 extern "C" int double_scanf (double* value);
 
 
 //+======================| INLINE FUNCTIONS DECLARATIONS |===========================+
 
 
+/** @brief main function that write translated instructions in destination buffer
+ *  @param dst_code buffer, where translated code will be written
+ *  @param operation_code object of opcode structure. Define the command, that will be written
+ */
 inline void write_command(assembly_code* const __restrict  dst_code,
                           opcode                           operation_code)
         __attribute__((always_inline, nonnull(1)));
 
 
-inline void translate_load_rsp(assembly_code* const __restrict dst_node)
+/** @brief translate the instruction "mov rsp, r15". Here in r15 the previous value of rsp is saved
+ *  @param dst_code buffer, where translated code will be written
+ */
+
+inline void translate_load_rsp(assembly_code* const __restrict dst_code)
         __attribute__((always_inline, nonnull(1)));
 
 
-inline u_int64_t cvt_host_reg_id_to_native(const int host_reg_id,
+/** @brief translate my assembler register individual number to x86 register encoding with this
+ *  expression (XMM(1-4) << offset) | suffix;
+ *  @param host_reg_id my assembler register individual number
+ *  @param suffix suffix needed in above expression
+ *  @param offset offset needed in above expression
+ *  @return x86 register encoding
+ */
+inline u_int64_t cvt_host_reg_id_to_native(const int       host_reg_id,
                                            const u_int64_t suffix,
                                            const u_int64_t offset)
        __attribute__((always_inline));
 
+/** @brief translate "push x", where x - double value to x86 instruction 
+ *  @param dst_code buffer, where translated code will be written
+ *  @param data converted to u_int64_t double value  
+ */
 
 inline void translate_push(assembly_code* const __restrict dst_code,
                            const u_int64_t                 data)
         __attribute__((nonnull(1), always_inline));
 
+/** @brief translate "push xx", where xx is ax, bx, cx or dx register in my assembler language
+ *  @param dst_code buffer, where translated code will be written
+ *  @param reg_id my assembler language register indeficator
+ */
 inline void translate_push_r(assembly_code* const __restrict dst_code,
                              const int                       reg_id)
         __attribute__((nonnull(1), always_inline));
 
+/** @brief translate cycled jump or call (label is before jump or call)
+ *  @param dst_code buffer, where translated code will be written
+ *  @param table label table structure. Need to find labels position by knowing jump position
+ *  (in this case it is posible because the label is before jump)
+ *  @param label_pos in source assembler code. This value will be used to find the appropriate
+ *  to label to current jump or call.
+ *  @param jmp_n_call_pos position of jump or call in source assembler code. This value also used
+ *  to find the appropriate to this jump label
+ *  @param jmp_n_call_code indefify which instruction translate (unconditional jump, conditional jump,
+ *  call)
+ */
 
 inline void translate_cycle(assembly_code* const __restrict dst_code,
                             label_table* const __restrict   table,
                             const int                       label_pos,
-                            const int                       jmp_pos,
-                            const int                       jmp_code)
+                            const int                       jmp_n_call_pos,
+                            const int                       jmp_n_call_code)
         __attribute__((nonnull(1,2), always_inline));
 
-inline void translate_jmp(assembly_code* const __restrict dst_code,
-                          label_table*   const __restrict table,
-                          const int label_pos,
-                          const int jmp_pos)
-        __attribute__((nonnull(1,2), always_inline));
+/** @brief translate jump or call that is before label. The relative address of label is setted as 0.
+ *  @param dst_code buffer, where translated code will be written
+ *  @param table label_table is used here to save current jump with appropriate label
+ *  @param label_pos label position in source code. This value is used to search in label_table
+ *  to "link" current jump with his label
+ *  @param jmp_n_call_pos jump or call position in source code. This value is also used for search
+ *  @param jmp_n_call_code indefify which instruction translate (unconditional jump, conditional jump,
+ *  call)
+ */
 
 inline void translate_ahead_jmp_n_call(assembly_code* const __restrict dst_code,
                                        label_table*   const __restrict table,
@@ -472,6 +572,15 @@ inline void translate_ahead_jmp_n_call(assembly_code* const __restrict dst_code,
                                        const int                       jmp_n_call_code)
         __attribute__((nonnull(1,2), always_inline));
 
+/** @brief translate jump or call. This function use translate_ahead_jmp_n_call(), translate_push(),
+ *  and translate_rel32_label() functions.
+ *  @param dst_code buffer, where translated code will be written
+ *  @param table label_table is used here to save current jump with appropriate label
+ *  @param label_pos label position in source code. This value is used to search in label_table
+ *  to "link" current jump with his label.
+ *  @param jmp_n_call_pos jump or call position in source code. This value is also used for search
+ *  @param jmp_n_call_code indefify which instruction translate (unconditional jump, conditional jump,
+  */
 
 inline void jmp_n_call_handler(assembly_code* const __restrict dst_code,
                                label_table*   const __restrict table,
@@ -480,24 +589,42 @@ inline void jmp_n_call_handler(assembly_code* const __restrict dst_code,
                                const int                       jmp_n_call_code)
         __attribute__((nonnull(1,2), always_inline));
 
-inline void translate_save_rsp(assembly_code* const __restrict dst_node)
+/** @brief translate "mov r15, rsp" in the begining of the buffer to save return address
+ *  @param dst_code buffer, where translated code will be written
+ */
+
+inline void translate_save_rsp(assembly_code* const __restrict dst_code)
         __attribute__((nonnull(1), always_inline));
 
+/** @brief translate "out" instruction in my assembler language. Out just print the top value in the stack.
+ *  @param dst_code buffer, where translated code will be written
+ */
 
-inline void translate_stdout(assembly_code* const __restrict dst_buffer)
-        __attribute__((always_inline, nonnull(1)));
+inline void translate_stdout(assembly_code* const __restrict dst_code)
+       __attribute__((nonnull(1), always_inline));
 
-
+/** @brief translate two sequential pop for comparison for conditional jump
+ *  @param dst_code buffer, where translated code will be written
+ *  @param jmp_code indefify which instruction translate (unconditional jump, conditional jump,
+ */
 
 inline void translate_two_pop_for_cmp(assembly_code* const __restrict dst_code,
                                       const int                       jmp_code)
        __attribute__((nonnull(1), always_inline));
-        
+
+
+/** @brief translate "ret" instruction to leave buffer execution
+ *  @param dst_code buffer, where translated code will be written
+ */
 
 inline void translate_ret(assembly_code* const __restrict dst_code)
         __attribute__((nonnull(1), always_inline));
 
 
+/** @brief translate arithmetic operations like add, sub, mul, div.
+ *  @param dst_code buffer, where translated code will be written
+ *  @param op_id indeficator of which operator translate (sub, add, mul or div)
+ */
 
 inline void translate_arithmetic_op(assembly_code* const __restrict dst_code,
                                     const int                       op_id)

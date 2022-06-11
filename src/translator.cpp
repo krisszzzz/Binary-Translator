@@ -120,26 +120,25 @@ void make_label_table(assembly_code* const __restrict src_code,
                 
 }
 
-#define CODE_POS(count)   table->elems[indx].data[count].code_pos
-#define JMP_POS(count)    table->elems[indx].data[count].jmp
-#define LABEL_POS(count)  table->elems[indx].data[count].label
+#define CODE_POS(count)   table->elems[search_indx].data[count].code_pos
+#define JMP_POS(count)    table->elems[search_indx].data[count].jmp
+#define LABEL_POS(count)  table->elems[search_indx].data[count].label
 
 // For getting info about jmp type
 #define CHECK_JMP         (current_code & 0xFF)
 
-void label_setting(assembly_code* const __restrict dst_code,
-                   label_table* const   __restrict table,
-                   const int                       indx,
-                   const size_t                    code_pos,
-                   const int                       label_pos)
-
+void link_label(assembly_code* const __restrict dst_code,
+                label_table* const   __restrict table,
+                const int                       search_indx,
+                const int                       label_pos)
+        
 {
-        for (int iter_count = 0; iter_count < table->elems[indx].size; ++iter_count) {
+        for (int iter_count = 0; iter_count < table->elems[search_indx].size; ++iter_count) {
                 if (label_pos == LABEL_POS(iter_count)) {
                         if(JMP_POS(iter_count) >= LABEL_POS(iter_count)) {
-                                CODE_POS(iter_count) = code_pos;
+                                CODE_POS(iter_count) = dst_code->position;
                         } else {
-                                save_jmp_n_call_rel32(dst_code, CODE_POS(iter_count));
+                                translate_rel32_label(dst_code, CODE_POS(iter_count));
                         }
                         
                 }
@@ -161,11 +160,11 @@ inline void align_stack(assembly_code* const __restrict dst_code)
 
 //+==============| JMP AND CALL HANDLING |=====================+
 
-int save_jmp_n_call_rel32(assembly_code* const __restrict dst_code,
-                          const size_t                    code_pos)
+void translate_rel32_label(assembly_code* const __restrict dst_code,
+                           const size_t                    jmp_pos)
 {
         char*  temp_code = dst_code->code;
-        size_t to_sub    = dst_code->position - code_pos;
+        size_t to_sub    = dst_code->position - jmp_pos;
         dst_code->code  -= to_sub; 
 
         const u_int64_t current_code = *(uint_fast64_t*)dst_code->code;
@@ -189,8 +188,7 @@ int save_jmp_n_call_rel32(assembly_code* const __restrict dst_code,
         
         write_command(dst_code, write_rel32);
         dst_code->code     = temp_code;
-        dst_code->position = code_pos + to_sub; // restore previous value
-        return 0;
+        dst_code->position = jmp_pos + to_sub; // restore previous value
 }
 
 #define GEN_JMP(jmp_type, cmp_type)                                            \
@@ -233,11 +231,11 @@ opcode translate_jmp_n_call(assembly_code* const __restrict dst_code,
                 GEN_JMP(EQUAL, CMP_R14D_3);
                 break;
         }
-        case CALL:
+        case CALL: {
                 translate_push(dst_code,
                                (u_int64_t)dst_code->code + TRANSLATE_PUSH_SIZE);
                 __attribute__((fallthrough));
-                               
+        }                               
         case JMP: {
                 jmp.code = JMP_REL32;
                 jmp.size = OPSIZE(JMP_REL32);
@@ -823,11 +821,11 @@ inline void translate_save_rsp(assembly_code* const __restrict dst_code)
 inline void translate_load_rsp(assembly_code* const __restrict dst_code)
 {
         
-        constexpr opcode mov_rsp_rbp = {
+        constexpr opcode mov_rsp_r15 = {
                 .code = MOV_RSP_R15,
                 .size = OPSIZE(MOV_RSP_R15)
         };
-        write_command(dst_code, mov_rsp_rbp);
+        write_command(dst_code, mov_rsp_r15);
 }
 
 
@@ -958,11 +956,10 @@ void execute_start(char* const __restrict execution_buffer,
                                                  iter_count);           \
                                                                         \
         if (search_res != NOT_FOUND) {                                  \
-                label_setting(dst_buffer,                               \
-                              &table,                                   \
-                              search_res,                               \
-                              dst_buffer->position,                     \
-                              iter_count);                              \
+                link_label(dst_buffer,                                  \
+                           &table,                                      \
+                           search_res,                                  \
+                           iter_count);                                 \
         }
 
 
@@ -973,9 +970,9 @@ void execute_start(char* const __restrict execution_buffer,
 //+===================| START TRANSLATION |====================+
 
 
-int translation_start(const char *const __restrict    src_file_name,
-                      assembly_code *const __restrict dst_buffer,
-                      const int                       time_flag)
+void translation_start(const char *const __restrict    src_file_name,
+                       assembly_code *const __restrict dst_buffer,
+                       const int                       time_flag)
     
 {
         auto start = std::chrono::high_resolution_clock::now();
