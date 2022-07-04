@@ -1030,7 +1030,6 @@ void translation_start(const char *const __restrict    src_file_name,
                        duration.count());
         }
         
-        return 0;
 }
 
 

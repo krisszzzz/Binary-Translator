@@ -11,6 +11,8 @@
 #include <sys/mman.h>
 #include <label_table.h>
 
+
+
 #define PAGESIZE 4096              /**< Default linux page size. Needed to mprotect correct work */
 #define HOST_MEMORY_COUNT 993      /**< All memory indexes that used in host assembler */
 #define TRANSLATE_PUSH_SIZE 23     /**< Size of opcode of one push register, needed to correct call */
@@ -319,7 +321,6 @@ enum X86_ASSEMBLY_OPCODES_SIZE {
   SIZEOF_VMOVQ_R13_B_IMM_XMM5  = 6,
   SIZEOF_VMOVQ_R13_D_IMM_XMM5  = 5,
   SIZEOF_RET                   = 1
-  
 };
 
 //-===============================================-
@@ -418,8 +419,8 @@ void link_label(assembly_code* const __restrict dst_code,
  *  translated jmp (call) receives the address of this label.
  */
 
-void traslate_rel32_label(assembly_code* const __restrict dst_code,
-                          const size_t                    jmp_pos)
+void translate_rel32_label(assembly_code* const __restrict dst_code,
+                           const size_t                    jmp_pos)
         __attribute__((nonnull(1)));
 
 
